@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body id="app">
+
+</body>
+
+</html>
+<script src="https://unpkg.com/@vue/reactivity@3.0.2/dist/reactivity.global.js"></script>
+<script>
+    /**
+     * 1. 先预处理首尾while比较patch元素
+     * 2. 判断是否根据newChildren都已经处理完则oldChildren移除或 oldChildren处理完而newChildren新增节点
+     * 3. 2的条件不满足判断是否有dom是需要移动的：如非理想状态下只有首尾vnode是匹配的，中间还有好多vnode不首尾匹配则需要判断是否移动dom
+     * **/
+    function handleObject(set, obj) {
+        for (const key in obj) {
+            if (obj[key]) set.add(key) // 如果对象的值为true, set里把键(className)加进去
+        }
+    }
+
+    function normalizeClass(classValue) {
+        // 字符串
+        if (typeof classValue === 'string') return classValue
+        let resultClassSet = new Set()
+        // 数组和对象情况
+        if (Array.isArray(classValue)) {
+            for (const value of classValue) {
+                if (typeof value === 'string') resultClassSet.add(value)
+                else {
+                    // 对象
+                    handleObject(resultClassSet, value)
+                }
+            }
+        } else {
+            // 对象
+            handleObject(resultClassSet, classValue)
+        }
+        return Array.from(resultClassSet).join(' ').trim()
+    }
+
+    function shouldSetAsProps(el, key, value) {
+        if (key == 'form' && el.tagName === 'INPUT') return false; // 属性值为form 并且为input元素其值为只读
+        return key in el; // dom props中是否存在key
+    };
+
+    function createRenderer(options) {
+        const {
+            createElement,
+            insert,
+            setElementText,
+            createText,
+            setText,
+            patchProps
+        } = options;
+
+        // 新旧节点的更新或者挂载
+        function patch(n1, n2, container, anchor) {
+            if (n1 && n1.type !== n2.type) { // type 不同卸载n1
+                unmount(n1);
+                n1 = null;
+            }
+            const {
+                type
+            } = n2;
+            if (typeof type === 'string') { // 普通标签
+                if (!n1) {
+                    mountElement(n2, container, anchor);
+                } else {
+                    patchElement(n1, n2);
+                }
+            } else if (type === Text) {
+                if (!n1) {
+                    const el = n2.el = createText(n2.children);
+                    insert(el, container);
+                } else {
+                    const el = n2.el = n1.el;
+                    if (n2.children !== n1.children) {
+                        setText(el, n2.children);
+                    }
+                }
+            } else if (type === Fragment) {
+                if (!n1) {
+                    n2.children.forEach(c => {
+                        patch(null, c, container)
+                    })
+                } else {
+                    patchChildren(n1, n2, container);
+                }
+            } else if (typeof type === 'object') {
+                // 组件
+            } else if (typeof type === 'x') {
+
+            }
+            // if (!n1) {
+            //     // 挂载
+            //     mountElement(n2, container);
+            // } else {
+            //     // 打补丁-更新
+
+            // }
+        };
+
+        function mountElement(vnode, container, anchor) {
+            const el = vnode.el = createElement(vnode.type);
+            if (typeof vnode.children === 'string') {
+                setElementText(el, vnode.children);
+            } else if (Array.isArray(vnode.children)) {
+                vnode.children.forEach(child => {
+                    patch(null, child, el);
+                });
+            }
+            if (vnode.props) {
+                for (const key in vnode.props) {
+                    // 优先设置dom properties
+                    patchProps(el, key, null, vnode.props[key]);
+                }
+            }
+            insert(el, container, anchor);
+        }
+        // 更新函数
+        function patchElement(n1, n2) {
+            const el = n2.el = n1.el;
+            const oldProps = n1.props;
+            const newProps = n2.props;
+            // 更新在newProps中值不相同或者新的值
+            for (const key in newProps) {
+                if (newProps[key] !== oldProps[key]) {
+                    patchProps(el, key, oldProps[key], newProps[key]);
+                }
+            }
+            // 卸载 newProps中已不存在的oldProps 设置值为null
+            for (const key in oldProps) {
+                if (!(key in newProps)) {
+                    patchProps(el, key, oldProps[key], null);
+                }
+            }
+            patchChildren(n1, n2, el);
+        }
+
+
+        function patchChildren(n1, n2, container) {
+            if (typeof n2.children === 'string') {
+                if (Array.isArray(n1.children)) {
+                    n1.children.forEach((c) => unmount(c));
+                }
+                setElementText(container, n2.children);
+            } else if (Array.isArray(n2.children)) {
+                if (Array.isArray(n1.children)) {
+                    // 新旧子节点都是数组 diff核心算法
+                    patchKeyedChildren(n1, n2, container);
+                } else {
+                    setElementText(container, '');
+                    n2.children.forEach(c => patch(null, c, container))
+                }
+            } else {
+                // 新子节点不存在
+                if (Array.isArray(n1.children)) {
+                    n1.children.forEach((c) => unmount(c));
+                } else if (typeof n1.children === 'string') {
+                    setElementText(container, '');
+                }
+            }
+        }
+
+        function patchKeyedChildren(n1, n2, container) {
+            const oldChildren = n1.children;
+            const newChildren = n2.children;
+            let j = 0;
+            let oldVNode = oldChildren[j];
+            let newVNode = newChildren[j];
+            console.log(j);
+            // 更新前置元素
+            while (oldVNode.key === newVNode.key) {
+                patch(oldVNode, newVNode, container);
+                j++;
+                oldVNode = oldChildren[j];
+                newVNode = newChildren[j];
+            }
+            // 更新后置元素
+            let oldEnd = oldChildren.length - 1;
+            let newEnd = newChildren.length - 1;
+            oldVNode = oldChildren[oldEnd];
+            newVNode = newChildren[newEnd];
+            while (oldVNode && newVNode && (oldVNode.key === newVNode.key)) {
+                patch(oldVNode, newVNode, container);
+                oldEnd--;
+                newEnd--;
+                oldVNode = oldChildren[oldEnd];
+                newVNode = newChildren[newEnd];
+            };
+            // 以上未匹配到则newChildren 新增
+            if (j > oldEnd && j <= newEnd) {
+                const anchorIndex = newEnd + 1;
+                // 插入锚点元素
+                const anchor = anchorIndex < newChildren.length ? newChildren[anchorIndex].el : null;
+                while (j <= newEnd) {
+                    patch(null, newChildren[j++], container, anchor);
+                };
+            } else if (j > newEnd && j <= oldEnd) {
+                // 删除旧元素 以上未匹配 oldChildren 移除
+                while (j <= oldEnd) {
+                    unmount(oldChildren[j++]);
+                }
+            } else {
+                // 非理想状态下
+                const count = newEnd - j + 1;
+                const source = new Array(count)
+                // source 存放被复用的旧节点的索引值
+                source.fill(-1);
+                const oldStart = j;
+                const newStart = j;
+                let moved = false;
+                let pos = 0;
+                // 构建索引表 -- 提升source的性能
+                const keyIndex = {};
+                for (let i = newStart; i <= newEnd; i++) {
+                    keyIndex[newChildren[i].key] = i;
+                }
+                // 新增patched 代表更新过的节点数量；
+                let patched = 0;
+                for (let i = oldStart; i <= oldEnd; i++) {
+                    const oldVNode = oldChildren[i];
+                    if (patched <= count) {
+                        const k = keyIndex[oldChildren[i].key];
+                        if (typeof k !== 'undefined') {
+                            newVNode = newChildren[k];
+                            patch(oldVNode, newVNode, container);
+
+                            patched++;
+                            source[k - newStart] = i;
+                            if (k < pos) {
+                                moved = true;
+                            } else {
+                                pos = k;
+                            }
+                        } else {
+                            // 没找到
+                            unmount(oldVNode);
+                        }
+                    } else {
+                        unmount(oldVNode);
+                    }
+                    // for (let k = newStart; k <= newEnd; k++) {
+                    //     const newVNode = newChildren[k];
+                    //     if (oldVNode.key === newVNode.key) {
+                    //         patch(oldVNode, newVNode, container);
+                    //         source[k - newStart] = i; //保持旧节点的位置 for O(n2) 性能不好
+                    //     }
+                    // }
+                }
+                if (moved) {
+                    //最长递增长序列--最长递增长的范围外为则是需要移动的元素如：【1，2，4，3】，最小为【1，2，3】/ [1,2,4]
+                    const seq = lis(source); // 返回值为最长递增长数组的索引值 // source 旧节点复用key所在位置
+                    // s 指向最长递增长序列的最后一个元素
+                    let s = seq.length - 1;
+                    // i 指向剩余newChildren 中的最后一个元素
+                    let i = count - 1;
+                    for (i; i >= 0; i--) {
+                        if (source[i] === -1) {
+                            // 新节点
+                            const pos = i + newStart;
+                            const newVNode = newChildren[pos];
+                            // 该节点的下一个节点位置   
+                            const nextPos = pos + 1;
+                            // 锚点
+                            const anchor = nextPos < newChildren.length ? newChildren[nextPos].el : null;
+                            // 挂载
+                            patch(null, newVNode, container, anchor);
+                        } else if (i !== seq[s]) {
+                            // 不相等 则需要移动
+                            const pos = i + newStart;
+                            const newVNode = newChildren[pos];
+                            const nextPos = pos + 1;
+                            const anchor = nextPos < newChildren.length ? newChildren[nextPos].el : null;
+                            // 移东
+                            insert(newVNode.el, container, anchor);
+                        } else {
+                            // 不需要移动 
+                            s--;
+                        }
+                    }
+                }
+            }
+        }
+
+        function unmount(vnode) {
+            if (vnode.type === Fragment) {
+                vnode.children.forEach(c => unmount(c));
+                return
+            }
+            const el = vnode.el;
+            const parent = el.parentNode
+            if (parent) {
+                parent.removeChild(el);
+            }
+        }
+
+        function render(vnode, container) {
+            if (vnode) {
+                patch(container._vnode, vnode, container)
+            } else {
+                if (container._vnode) {
+                    unmount(container._vnode);
+                }
+            }
+            container._vnode = vnode;
+        }
+        return {
+            render
+        }
+    }
+    const browserOptions = {
+        createElement(tag) {
+            return document.createElement(tag);
+        },
+        setElementText(el, text) {
+            el.textContent = text;
+        },
+        insert(el, parent, anchor = null) {
+            parent.insertBefore(el, anchor);
+        },
+        createText(text) {
+            return document.createTextNode(text);
+        },
+        setText(el, text) {
+            el.nodeValue = text;
+        },
+        patchProps(el, key, preValue, nextValue) {
+            if (/^on/.test(key)) {
+                // 更具属性名称获取对应事件名称
+                const name = key.slice(2).toLowerCase();
+                // preValue && el.removeEventListener(name, preValue);
+                // el.addEventListener(name, nextValue)
+                // 性能更佳的卸载事件的方式
+                const invokers = el._vei || (el._vei = {})
+                let invoker = invokers[key]
+                if (nextValue) {
+                    if (!invoker) {
+                        // 将事件缓存到el._vei[key]中
+                        // vue event invoker 
+                        invoker = el._vei[key] = (e) => {
+                            if (e.timeStamp < invoker.attached) return; // timeStamp 事件触发事件 < chrome49 时间不高精
+                            if (Array.isArray(invoker.value)) {
+                                invoker.value.forEach(fn => fn(e))
+                            } else {
+                                invoker.value(e)
+                            }
+                        }
+                        invoker.value = nextValue;
+                        invoker.attached = performance.now();
+                        console.log(el, invoker.attached);
+                        el.addEventListener(name, invoker);
+                    } else {
+                        invoker.value = nextValue; // 可以避免更新事件时 多一次卸载removeEventListener事件执行 从而提升性能
+                    }
+                } else if (invoker) {
+                    el.removeEventListener(name, invoker);
+                }
+            } else if (key === 'class') {
+                el.className = nextValue || '';
+            } else if (shouldSetAsProps(el, key, nextValue)) {
+                const type = typeof el[key];
+                if (type === 'boolean' && nextValue === '') {
+                    el[key] = true;
+                } else {
+                    el[key] = nextValue;
+                }
+            } else {
+                el.setAttribute(key, vnode.props[key]);
+            }
+
+        }
+    };
+    // 最长增长序列
+    function lis(nums) {
+        if (nums.length === 0) {
+            return [0, []]; // 返回长度为0的序列  
+        }
+
+        const dp = new Array(nums.length).fill(1); // dp[i]表示以nums[i]结尾的LIS长度  
+        const prev = new Array(nums.length).fill(-1); // prev[i]表示构成dp[i]长度的前一个元素索引  
+
+        let maxLength = 1;
+        let endIndex = 0; // 最长增长序列的结束索引  
+
+        for (let i = 1; i < nums.length; i++) {
+            for (let j = 0; j < i; j++) {
+                if (nums[i] > nums[j]) {
+                    if (dp[j] + 1 > dp[i]) {
+                        dp[i] = dp[j] + 1;
+                        prev[i] = j;
+                    }
+                }
+            }
+            if (dp[i] > maxLength) {
+                maxLength = dp[i];
+                endIndex = i;
+            }
+        }
+
+        // 构造最长增长序列的索引列表  
+        const lisIndices = [];
+        let current = endIndex;
+        while (current !== -1) {
+            lisIndices.unshift(current); // 从后向前遍历，因此使用unshift添加到数组前端  
+            current = prev[current];
+        }
+
+        return lisIndices;
+    }
+    const {
+        effect,
+        ref
+    } = VueReactivity
+    const bol = ref(false);
+    const Text = Symbol();
+    const Comment = Symbol();
+    const Fragment = Symbol();
+
+    const renderer = createRenderer(browserOptions)
+    const oldVNode = {
+        type: 'div',
+        children: [{
+                type: 'p',
+                children: '1',
+                key: 1
+            },
+            {
+                type: 'p',
+                children: '3',
+                key: 3
+            },
+            {
+                type: 'p',
+                children: '4',
+                key: 4
+            },
+            {
+                type: 'p',
+                children: '2',
+                key: 2
+            },
+            {
+                type: 'p',
+                children: '7',
+                key: 7
+            },
+            {
+                type: 'p',
+                children: '5',
+                key: 5
+            },
+        ]
+    }
+    const newVNode = {
+        type: 'div',
+        children: [{
+                type: 'p',
+                children: '1-h',
+                key: 1
+            },
+            {
+                type: 'p',
+                children: '2-h',
+                key: 2
+            },
+            {
+                type: 'p',
+                children: '3-h',
+                key: 3
+            },
+            {
+                type: 'p',
+                children: '4-h',
+                key: 4
+            },
+            {
+                type: 'p',
+                children: '6-h',
+                key: 6
+            },
+            {
+                type: 'p',
+                children: '5-h',
+                key: 5
+            },  
+        ]
+    }
+    renderer.render(oldVNode, document.getElementById('app'))
+    setTimeout(() => {
+        renderer.render(newVNode, document.getElementById('app'))
+    }, 1000);
+    // effect(() => {
+    //     const vnode = {
+    //         type: 'div',
+    //         props: bol.value ? {
+    //             id: 'foo',
+    //             class: normalizeClass([
+    //                 'foo bar',
+    //                 {
+    //                     baz: true,
+    //                     bab: false
+    //                 }
+
+    //             ]),
+    //             onClick: [
+    //                 () => {
+    //                     alert('click1');
+    //                 },
+    //                 () => {
+    //                     alert('click2');
+    //                 }
+    //             ]
+    //         } : {},
+    //         children: [{
+    //             type: 'p',
+    //             children: 'hello',
+    //             props: {
+    //                 onClick: () => {
+    //                     bol.value = true;
+    //                 }
+    //             }
+    //         }]
+    //     }
+    //     renderer.render(vnode, document.getElementById('app'))
+
+    // })
+
+    // // 自定义渲染器
+    // const printOption = {
+    //     createElement(tag) {
+    //         console.log(`创建元素${tag}`)
+    //         return {
+    //             tag
+    //         }
+    //     },
+    //     setElementText(el, text) {
+    //         console.log(`设置 ${JSON.stringify(el)} 的文本内容为： ${text}`)
+    //         el.text = text
+    //     },
+    //     insert(el, parent, anchor) {
+    //         console.log(`将 ${JSON.stringify(el)} 添加到 ${JSON.stringify(parent)} 下`)
+    //         parent.children = el
+    //     }
+    // }
+    // const rendererPrint = createRenderer(printOption)
+    // // const container = {type: 'root'}
+    // rendererPrint.render(vnode, {
+    //     type: 'root'
+    // })
+</script>

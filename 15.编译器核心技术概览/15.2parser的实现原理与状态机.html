@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script>
+    /**
+     * 1.parser解析器
+     * --会逐个读取模板"字符串"，根据规则把"字符串"切割为多个token(词法记号)
+     * --词法记号：如
+     * 切割规则
+     * --有限状态自动机：有限个状态，随着字符串的输入，parse函数逐个读取字符，初始状态开始在某个双线状态改变记录这个后当前状态机
+     */
+    const State = {
+        initial: 1, // 初始状态
+        tagOpen: 2,
+        tagName: 3,
+        text: 4,
+        tagEnd: 5,
+        tagEndName: 6
+    }
+
+    function isAlpha(char) {
+        return char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z'
+    }
+
+    function tokenize(str) {
+        let currentState = State.initial;
+        // 缓存字符
+        const chars = [];
+        // 生成的token会存储tokens中，并作为函数返回值
+        const tokens = [];
+        while (str) {
+            // 查看第一个字符
+            const char = str[0];
+            switch (currentState) {
+                case State.initial:
+                    // 状态机当前处于初始状态
+                    if (char === '<') {
+                        // 标签开始
+                        currentState = State.tagOpen;
+                        str = str.slice(1);
+                    } else if (isAlpha(char)) {
+                        currentState = State.text;
+                        chars.push(char);
+                        str = str.slice(1);
+                    }
+                    break;
+                case State.tagOpen:
+                    if (isAlpha(char)) {
+                        currentState = State.tagName;
+                        chars.push(char);
+                        str = str.slice(1);
+                    } else if (char === '/') {
+                        currentState = State.tagEnd;
+                        str = str.slice(1);
+
+                    }
+                    break;
+                case State.tagName:
+                    if (isAlpha(char)) {
+                        chars.push(char);
+                        str = str.slice(1);
+                    } else if (char === '>') {
+                        currentState = State.initial;
+                        tokens.push({
+                            type: 'tag',
+                            name: chars.join('')
+                        });
+                        chars.length = 0;
+                        str = str.slice(1);
+                    }
+                    break;
+                case State.text:
+                    if (isAlpha(char)) {
+                        chars.push(char);
+                        str = str.slice(1);
+                    } else if (char === '<') {
+                        currentState = State.tagOpen;
+                        tokens.push({
+                            type: 'text',
+                            name: chars.join('')
+                        });
+                        chars.length = 0;
+                        str = str.slice(1);
+                    }
+                    break;
+                case State.tagEnd: // '/'
+                    if (isAlpha(char)) {
+                        currentState = State.tagEndName;
+                        chars.push(char);
+                        str = str.slice(1);
+                    }
+                    break;
+                case State.tagEndName:
+                    if (isAlpha(char)) {
+                        chars.push(char);
+                        str = str.slice(1);
+                    } else if (char === '>') {
+                        currentState = State.initial;
+                        tokens.push({
+                            type: 'tagEnd',
+                            name: chars.join('')
+                        });
+                        chars.length = 0;
+                        str = str.slice(1);
+                    }
+                    break;
+            }
+        }
+        return tokens;
+    }
+
+    const tokens = tokenize('<p>Vue</p>');
+    console.log(tokens);
+</script>

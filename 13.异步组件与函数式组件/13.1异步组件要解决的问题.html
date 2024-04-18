@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+   <meta charset="UTF-8">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script>
+   /**
+    *1.异步加载与渲染的问题
+    *2.可以在components中直接调用这个方法注册异步组件
+    *3.异步需要考虑：
+    *--1.是否加载失败，是否渲染error组件
+    *--2.加载时是否需要展示占位内容如：loading
+    *--3.组件加载是否要200秒判断已避免loading与内容切换的闪烁
+    *--4.加载失败后是否重试    
+    * */
+   /**
+    * <template>
+    *   <asyncComp />
+    * </template>
+    * script
+    *   export default{
+    *     components:{
+    *        asyncComp:defineAsyncComponent(()=>import('CompA'));
+    *     }
+    *  }
+    * script
+    * 
+    */
+
+   function defineAsyncComponent(loader) {
+      let InnerComp = null;
+      return {
+         name: 'AsyncComponentWrapper',
+         setup() {
+            const loaded = ref(false);
+            loader.then((c) => {
+               InnerComp = c;
+               loaded.value = true;
+            })
+            return () => {
+               return loaded.value ? {
+                  type: InnerComp
+               } : {
+                  type: Text,
+                  children: ''
+               }
+            }
+         }
+      }
+   }
+</script>

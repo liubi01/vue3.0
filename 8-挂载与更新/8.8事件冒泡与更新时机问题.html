@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body id="app">
+
+</body>
+
+</html>
+<script src="https://unpkg.com/@vue/reactivity@3.0.2/dist/reactivity.global.js"></script>
+<script>
+    /**
+     * 1. 将options抽离
+     * 2. class的normalizeClass 对class正常化字符串
+     * 3. 微任务会穿插在由事件冒泡触发的多个事件处理函数之间执行
+     *    屏蔽父节点冒泡问题：父节点的click事件如果实在bol.value 事件才绑定的话，子节点触发后冒泡到父节点（所以父节点的事件触发时间和子节点的相同） 然后父节点绑定事件 被冒泡在执行其事件
+     * **/
+    function handleObject(set, obj) {
+        for (const key in obj) {
+            if (obj[key]) set.add(key) // 如果对象的值为true, set里把键(className)加进去
+        }
+    }
+
+    function normalizeClass(classValue) {
+        // 字符串
+        if (typeof classValue === 'string') return classValue
+        let resultClassSet = new Set()
+        // 数组和对象情况
+        if (Array.isArray(classValue)) {
+            for (const value of classValue) {
+                if (typeof value === 'string') resultClassSet.add(value)
+                else {
+                    // 对象
+                    handleObject(resultClassSet, value)
+                }
+            }
+        } else {
+            // 对象
+            handleObject(resultClassSet, classValue)
+        }
+        return Array.from(resultClassSet).join(' ').trim()
+    }
+
+    function shouldSetAsProps(el, key, value) {
+        if (key == 'form' && el.tagName === 'INPUT') return false; // 属性值为form 并且为input元素其值为只读
+        return key in el; // dom props中是否存在key
+    };
+
+    function createRenderer(options) {
+        const {
+            createElement,
+            insert,
+            setElementText,
+            patchProps
+        } = options;
+
+        function patch(n1, n2, container) {
+            if (n1 && n1.type !== n2.type) {
+                unmount(n1);
+                n1 = null;
+            }
+            const {
+                type
+            } = n2;
+            if (typeof type === 'string') {
+                if (!n1) {
+                    mountElement(n2, container);
+                } else {
+                    patchElement(n1, n2);
+                }
+            } else if (typeof type === 'object') {
+                // 组件
+            } else if (typeof type === 'x') {
+
+            }
+            // if (!n1) {
+            //     // 挂载
+            //     mountElement(n2, container);
+            // } else {
+            //     // 打补丁-更新
+
+            // }
+        };
+
+        function mountElement(vnode, container) {
+            const el = vnode.el = createElement(vnode.type);
+            if (typeof vnode.children === 'string') {
+                setElementText(el, vnode.children);
+            } else if (Array.isArray(vnode.children)) {
+                vnode.children.forEach(child => {
+                    patch(null, child, el);
+                });
+            }
+            if (vnode.props) {
+                for (const key in vnode.props) {
+                    // 优先设置dom properties
+                    patchProps(el, key, null, vnode.props[key]);
+                }
+            }
+            insert(el, container);
+        }
+        // 更新函数
+        function patchElement(oldVNode, newVNode) {
+
+        }
+
+        function unmount(vnode) {
+            const el = container._vnode.el;
+            const parent = el.parentNode
+            if (parent) {
+                parent.removeChild(el);
+            }
+        }
+
+        function render(vnode, container) {
+            if (vnode) {
+                patch(container._vnode, vnode, container)
+            } else {
+                if (container._vnode) {
+                    unmount(container._vnode);
+                }
+            }
+            container._vnode = vnode;
+        }
+        return {
+            render
+        }
+    }
+    const browserOptions = {
+        createElement(tag) {
+            return document.createElement(tag);
+        },
+        setElementText(el, text) {
+            el.textContent = text;
+        },
+        insert(el, parent, anchor = null) {
+            parent.insertBefore(el, anchor);
+        },
+        patchProps(el, key, preValue, nextValue) {
+            if (/^on/.test(key)) {
+                // 更具属性名称获取对应事件名称
+                const name = key.slice(2).toLowerCase();
+                // preValue && el.removeEventListener(name, preValue);
+                // el.addEventListener(name, nextValue)
+                // 性能更佳的卸载事件的方式
+                const invokers = el._vei || (el._vei = {})
+                let invoker = invokers[key]
+                if (nextValue) {
+                    if (!invoker) {
+                        // 将事件缓存到el._vei[key]中
+                        // vue event invoker 
+                        invoker = el._vei[key] = (e) => {
+                            if (e.timeStamp < invoker.attached) return; // timeStamp 事件触发事件 < chrome49 时间不高精
+                            if (Array.isArray(invoker.value)) {
+                                invoker.value.forEach(fn => fn(e))
+                            } else {
+                                invoker.value(e)
+                            }
+                        }
+                        invoker.value = nextValue;
+                        invoker.attached = performance.now();
+                        console.log(el, invoker.attached);
+                        el.addEventListener(name, invoker);
+                    } else {
+                        invoker.value = nextValue; // 可以避免更新事件时 多一次卸载removeEventListener事件执行 从而提升性能
+                    }
+                } else if (invoker) {
+                    el.removeEventListener(name, invoker);
+                }
+            } else if (key === 'class') {
+                el.className = nextValue || '';
+            } else if (shouldSetAsProps(el, key, nextValue)) {
+                const type = typeof el[key];
+                if (type === 'boolean' && nextValue === '') {
+                    el[key] = true;
+                } else {
+                    el[key] = nextValue;
+                }
+            } else {
+                el.setAttribute(key, vnode.props[key]);
+            }
+
+        }
+    };
+
+    const {
+        effect,
+        ref
+    } = VueReactivity
+    const bol = ref(false);
+    const renderer = createRenderer(browserOptions)
+    effect(() => {
+        const vnode = {
+            type: 'div',
+            props: bol.value ? {
+                id: 'foo',
+                class: normalizeClass([
+                    'foo bar',
+                    {
+                        baz: true,
+                        bab: false
+                    }
+
+                ]),
+                onClick: [
+                    () => {
+                        alert('click1');
+                    },
+                    () => {
+                        alert('click2');
+                    }
+                ]
+            } : {},
+            children: [{
+                type: 'p',
+                children: 'hello',
+                props: {
+                    onClick: () => {
+                        bol.value = true;
+                    }
+                }
+            }]
+        }
+        renderer.render(vnode, document.getElementById('app'))
+
+    })
+
+    // // 自定义渲染器
+    // const printOption = {
+    //     createElement(tag) {
+    //         console.log(`创建元素${tag}`)
+    //         return {
+    //             tag
+    //         }
+    //     },
+    //     setElementText(el, text) {
+    //         console.log(`设置 ${JSON.stringify(el)} 的文本内容为： ${text}`)
+    //         el.text = text
+    //     },
+    //     insert(el, parent, anchor) {
+    //         console.log(`将 ${JSON.stringify(el)} 添加到 ${JSON.stringify(parent)} 下`)
+    //         parent.children = el
+    //     }
+    // }
+    // const rendererPrint = createRenderer(printOption)
+    // // const container = {type: 'root'}
+    // rendererPrint.render(vnode, {
+    //     type: 'root'
+    // })
+</script>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script>
+    /**
+     * 1.文本模式
+     * --解析器再工作的时候的一种状态，不同的状态解析器对文本的解析行为有所不同
+     * --一些特殊标签，会切换模式，从而影响文本解析行为
+     * ----title,textarea 切换为RCDATA模式
+     * ----style,xmp,iframe,noembed,noframes,noscript..切换为RAWTEXT模式
+     * ----<![CDDATA 会进入CDDATA模式
+     * ----也会影响解析器的终止解析
+     * ---DATA解析html与字符实体如&copy;也识别&，RCDATA解析遇到'<'不解析元素而认为是字符串'&'和'{{'插值解析,RAWTEXT解析html为字符串，CDDATA把html解析为字符串直到遇到'<!CDDATA['（xhmlt内才有用，遇到内部’<‘不把他当作元素解析而为字符串）
+     * parseChildren
+     * --是一种状态机，取决于子节点的类型数量，子节点也有如下类型
+     * --标签节点
+     * 文本插入: {{ }}
+     * 普通节点 text
+     * 注释节点：<!-- -->
+     * CDDATA节点：<![CDDATA[xxx]]>
+     * 以上对应不同的节点处理函数
+     * 2.递归下降解析
+     * --递归调用parseChildren 从上级到下级的下降构造下级模板ast节点
+     * --解析tag
+     */
+    const TextModes = {
+        DATA: 'DATA',
+        RCDATA: 'RCDATA',
+        RAWTEXT: 'RAWTEXT',
+        CDDATA: 'CDDATA'
+    }
+
+    function parse(str) {
+        const context = {
+            source: str,
+            mode: TextModes.DATA,
+            // 消费指定num的字符串
+            advanceBy(num) {
+                context.source = context.source.slice(num)
+            },
+            // 无论是开始结束标签都可能存在无用空格 <div  >
+            advanceSpaces() {
+                //匹配空白字符
+                const match = /^[\t\r\n\f]+/.exec(context.source);
+                if (match) {
+                    context.advanceBy(match[0].length);
+                }
+            }
+        }
+        // []:父节点构成的节点栈,初始时栈为空
+        const nodes = parseChildren(context, []);
+    }
+
+    function parseChildren(context, ancestors) {
+        let nodes = [];
+        const {
+            mode,
+            source
+        } = context;
+        // 字符串未结束
+        while (!isEnd(context, ancestors)) {
+            let node
+            if (mode === TextModes.DATA || mode === TextModes.RCDATA) {
+                if (mode === TextModes.DATA && source[0] === '<') {
+                    if (source[1] === '!') {
+                        if (source.startsWith('<!--')) {
+                            // 注释
+                            node = parseComment(context);
+                        } else if (source.startsWith('<![CDDATA[')) {
+                            // CDDATA
+                            node = parseCDDATA(context, ancestors);
+                        }
+                    } else if (source[1] === '/') {
+                        //结束标签
+                    } else if (/a-z/i.text(source[1])) {
+                        //开始标签
+                        node = parseElement(context, ancestors);
+                    }
+                } else if (source.startsWith('{{')) {
+                    // 解析插值
+                    node = parseInterpolation(context);
+                }
+            }
+            if (!node) {
+                //文本节点
+                node = parseText(context);
+            }
+            nodes.push(node);
+        }
+        return nodes;
+    };
+
+    function parseElement(context, ancestors) {
+        const element = parseTag(context);
+        if (element.isSelfClosing) return element;
+
+        //
+        if (element.tag === 'textarea' || element.tag === 'title') {
+            context.mode = TextModes.RCDATA;
+        } else if (/style|xmp|iframe|noembed|noframes|noscript/.test(element.tag)) {
+            context.mode = TextModes.RAWTEXT;
+        } else {
+            context.mode = TextModes.DATA
+        }
+        ancestors.push(element);
+        element.children = parseChildren(context, ancestors);
+        ancestors.pop;
+        if (context.source.startsWith(`</${element.tag}`)) {
+            parseTag(context, 'end');
+        } else {
+            console.error(`${element.tag}标签缺少闭合标签`);
+        }
+        return element;
+    }
+
+    function parseTag(context, type = 'start') {
+        const {
+            advanceBy,
+            advanceSpaces
+        } = context;
+
+        const match = type === 'start'
+            //开始标签
+            ?
+            /^<([a-z][^\t\r\n\f />]*)/i.exec(context.source)
+            //结束标签
+            :
+            /^<\/([a-z][^\t\r\n\f />]*)/i.exec(context.source)
+        // 匹配成功后，获取捕获组
+        const tag = match[1];
+        // 消费整个匹配结果<div 
+        advanceBy(match[0].length);
+        // 消费空白字符串
+        advanceSpaces();
+        // 自闭和
+        const isSelfClosing = context.source.startsWith('/>');
+        // 是否自闭和 消费'/>'或者'>'
+        advanceBy(isSelfClosing ? 2 : 1);
+        return {
+            type: 'Element',
+            tag,
+            props: [],
+            children: [],
+            isSelfClosing
+        }
+    }
+
+    function isEnd(context, ancestors) {
+        if (!context.source) return true;
+        const parent = ancestors[ancestors.length - 1];
+        if (parent && context.source.startsWith(`${parent.tag}`)) {
+            return true;
+        }
+    }
+
+    function parse() {
+
+    }
+</script>

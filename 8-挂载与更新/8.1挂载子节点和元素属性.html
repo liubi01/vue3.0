@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body id="app">
+
+</body>
+
+</html>
+<script>
+    /**
+     * 1. 将options抽离
+     * 2. class的normalizeClass 对class正常化字符串
+     * **/
+    function createRenderer(options) {
+        const {
+            createElement,
+            insert,
+            setElementText,
+            patchProps
+        } = options;
+
+        function patch(n1, n2, container) {
+            if (!n1) {
+                // 挂载
+                mountElement(n2, container);
+            } else {
+                // 打补丁
+            }
+        };
+
+        function shouldSetAsProps(el, key, value) {
+            if (key == 'form' && el.tagName === 'INPUT') return false; // 属性值为form 并且为input元素其值为只读
+            return key in el; // dom props中是否存在key
+        };
+
+        function mountElement(vnode, container) {
+            const el = createElement(vnode.type);
+            if (typeof vnode.children === 'string') {
+                setElementText(el, vnode.children);
+            } else if (Array.isArray(vnode.children)) {
+                vnode.children.forEach(child => {
+                    patch(null, child, el);
+                });
+            }
+            if (vnode.props) {
+                for (const key in vnode.props) {
+                    if (key in el) { // 优先设置dom properties
+                        patchProps(el, key, null, vnode.props[key]);
+                    }
+                }
+                insert(el, container);
+            }
+
+        }
+
+        function render(vnode, container) {
+            if (vnode) {
+                patch(container._vnode, vnode, container)
+            } else {
+                if (container._vnode) {
+                    container.innerHtml = ''
+                }
+            }
+            container._vnode = vnode;
+        }
+        return {
+            render
+        }
+
+        const browserOptions = {
+            createElement(tag) {
+                return document.createElement(tag);
+            },
+            setElementText(el, text) {
+                el.textContent = text;
+            },
+            insert(el, parent, anchor = null) {
+                parent.insertBefore(el, anchor);
+            },
+            patchProps(el, key, preValue, nextValue) {
+                if (shouldSetAsProps(el, key, value)) {
+                    const type = typeof el[key];
+                    if (type === 'boolean' && value === '') {
+                        el[key] = true;
+                    } else {
+                        el[key] = value;
+                    }
+                } else {
+                    el.setAttribute(key, vnode.props[key]);
+                }
+            }
+        };
+        const vnode = {
+            type: 'div',
+            props: {
+                id: 'foo'
+            },
+            children: [{
+                type: 'p',
+                children: 'hello'
+            }]
+        }
+        const renderer = createRenderer(browserOptions)
+        renderer.render(vnode, document.getElementById('app'))
+
+        // // 自定义渲染器
+        // const printOption = {
+        //     createElement(tag) {
+        //         console.log(`创建元素${tag}`)
+        //         return {
+        //             tag
+        //         }
+        //     },
+        //     setElementText(el, text) {
+        //         console.log(`设置 ${JSON.stringify(el)} 的文本内容为： ${text}`)
+        //         el.text = text
+        //     },
+        //     insert(el, parent, anchor) {
+        //         console.log(`将 ${JSON.stringify(el)} 添加到 ${JSON.stringify(parent)} 下`)
+        //         parent.children = el
+        //     }
+        // }
+        // const rendererPrint = createRenderer(printOption)
+        // // const container = {type: 'root'}
+        // rendererPrint.render(vnode, {
+        //     type: 'root'
+        // })
+</script>

@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
+</head>
+
+<body>
+
+</body>
+
+</html>
+<script>
+    /**
+     * 1. 编译前端
+     * --词语分析，语法分析，语义分析，=》中间代码
+     * --与目标平台无关，只负责分析源代码
+     * 2.编译后端
+     * --与目标平台有关
+     * --中间代码，优化，目标代码生成（不一定包括中间代码与优化取决于具体场景和实现）
+     * 3.vue中
+     * --模板就是源代码，javascript代码为目标代码（render函数 返回VNode）
+     * --模板每一个生成的AST根节点都是root
+     * 词法语法分析
+     * --parse(template)
+     * --模板 -》 parse -》模板AST (词法语法分析)
+     * 语义分析
+     * --检擦v-else是否有v-if匹配
+     * --分析属性值是否静态，常量等
+     * --插槽是否引用上层作用域等
+     * => 最后生成模板AST
+     * 中间代码
+     * --transform(ast) 转移生成JavaScript的AST
+     * 目标代码
+     * --generate(jsAst)生成目标代码code(渲染函数render)
+     */
+</script>

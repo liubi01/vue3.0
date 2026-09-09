@@ -1,18 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-</head>
+    <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
+        <title>Document</title>
+    </head>
 
-<body id="app">
+    <body id="app">
 
-</body>
+    </body>
 
 </html>
-<script src="https://unpkg.com/@vue/reactivity@3.0.2/dist/reactivity.global.js"></script>
+<script
+    src="https://unpkg.com/@vue/reactivity@3.0.2/dist/reactivity.global.js"></script>
 <script>
     /**
      * 1.为什么需要组件化：提升性能（将一个大的vnode 拆分成若甘个组件vnode,好处是少的vnode patch无论是新建还是更新都更快）
@@ -315,12 +316,12 @@
 
         // 组件操作
         function mountComponent(vnode, container, anchor) {
-            const componentOptions = vnode.type;
+            const componentOptions = vnode.type; // 组件选项 vnode.type = MyComponent
             const {
                 render,
                 data,
                 setup,
-                props: propsOption,
+                props: propsOption, //propsOption 组件自定义的
                 beforeCreate,
                 created,
                 beforeMount,
@@ -361,7 +362,7 @@
                     console.error('事件不存在');
                 }
             }
-            // 
+            // setup context
             const setupContext = {
                 attrs,
                 slots,
@@ -387,7 +388,7 @@
                         props,
                         slots,
                     } = t;
-                    if (key === '$slots') return slots;
+                    if (k === '$slots') return slots;
                     // 操作的key在state中
                     if (state && k in state) {
                         return state[k]
@@ -445,7 +446,7 @@
                 scheduler: queueJob
             })
         }
-        // 判断检查子组件是否需要真的更新，因为子组件的props可能是不变的（attrs更改单子组件不变），所以要区分是attrs父组件变更还是props被动子组件变更
+        // 判断检查子组件是否需要真的更新，因为子组件的props可能是不变的（attrs更改但子组件不变），所以要区分是attrs父组件变更还是props被动子组件变更
         // 用于判断是否props子组件的值需要重新设置 n1,n2 父组件VNode
         function patchComponent(n1, n2, anchor) {
             const instance = (n2.component = n1.component);
@@ -491,6 +492,13 @@
             }
         }
 
+        /**
+         * 渲染虚拟节点到容器中
+         * @param {VNode} vnode - 要渲染的虚拟节点
+         * @param {HTMLElement} container - 目标容器元素
+         * @description 如果vnode存在则执行patch操作，否则卸载容器中现有的虚拟节点
+         * 最后将当前vnode保存到容器的_vnode属性中
+         */
         function render(vnode, container) {
             if (vnode) {
                 patch(container._vnode, vnode, container)
@@ -521,12 +529,20 @@
     const queue = new Set();
     let isFlushing = false;
     const p = Promise.resolve();
+    /**
+     * 将任务添加到队列中，并在微任务队列中执行所有任务
+     * 
+     * @param {Function} job - 要执行的任务函数
+     * @param {Array} queue - 任务队列数组
+     * @param {boolean} isFlushing - 标记是否正在刷新队列
+     * @param {Promise} p - Promise实例，用于创建微任务
+     */
+    function queueJob(job) { // 提高性能：在每一个微任务中被调用
 
-    function queueJob(job) {
         queue.add(job);
         if (!isFlushing) {
-            isFlushing = true;
-            P.then(() => {
+            isFlushing = true; // 正在刷新
+            p.then(() => {
                 try {
                     queue.forEach(job => job());
                 } finally {
@@ -666,7 +682,14 @@
                 count
             }
         },
-        render() { //子组件中插槽编译后结果
+        /**
+ * 渲染组件模板，返回包含header、body和footer插槽的虚拟DOM结构
+ * 
+ * @returns {Array} 虚拟DOM节点数组，每个节点包含类型和子节点
+ * @property {string} type - 节点类型（header/body/footer）
+ * @property {Array} children - 子节点数组，包含对应插槽内容
+ */
+render() { //子组件中插槽编译后结果
             return [{
                     type: 'header',
                     children: [this.$slot.header()]

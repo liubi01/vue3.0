@@ -269,7 +269,7 @@
                     // i 指向剩余newChildren 中的最后一个元素
                     let i = count - 1;
                     for (i; i >= 0; i--) {
-                        if (source[i] === -1) {
+                        if (source[i] === -1) { // 没有复用
                             // 新节点
                             const pos = i + newStart;
                             const newVNode = newChildren[pos];
@@ -279,7 +279,7 @@
                             const anchor = nextPos < newChildren.length ? newChildren[nextPos].el : null;
                             // 挂载
                             patch(null, newVNode, container, anchor);
-                        } else if (i !== seq[s]) {
+                        } else if (i !== seq[s]) { //
                             // 不相等 则需要移动
                             const pos = i + newStart;
                             const newVNode = newChildren[pos];
@@ -472,7 +472,7 @@
                 foo: 'hello world'
             }
         },
-        render() {
+        render(state) {
             return {
                 type: 'div',
                 children: `foo 的只是：${this.foo}`

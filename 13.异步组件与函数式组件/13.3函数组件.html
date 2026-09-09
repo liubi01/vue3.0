@@ -747,8 +747,20 @@
         }
     };
     // 最长增长序列
+    /**
+    * 计算给定数组的最长递增子序列(LIS)的索引列表
+    *
+    * @param {number[]} nums - 输入的数字数组
+    * @returns {number[]} 最长递增子序列在原数组中的索引列表
+    *
+    * 算法说明：
+    * - 使用动态规划方法计算最长递增子序列
+    * - dp数组记录以每个元素结尾的最长递增子序列长度
+    * - prev数组记录构成当前最长子序列的前驱元素索引
+    * - 时间复杂度为O(n^2)
+    */
     function lis(nums) {
-        if (nums.length === 0) {
+    if (nums.length === 0) {
             return [0, []]; // 返回长度为0的序列  
         }
 
@@ -760,9 +772,9 @@
 
         for (let i = 1; i < nums.length; i++) {
             for (let j = 0; j < i; j++) {
-                if (nums[i] > nums[j]) {
-                    if (dp[j] + 1 > dp[i]) {
-                        dp[i] = dp[j] + 1;
+                if (nums[i] > nums[j]) { // 是递增序列    
+                    if (dp[j] + 1 > dp[i]) { // 如果当前元素比前一个元素大，则更新dp[i]和prev[i]
+                        dp[i] = dp[j] + 1; // 更新最长长度
                         prev[i] = j;
                     }
                 }

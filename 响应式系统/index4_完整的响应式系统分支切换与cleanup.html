@@ -47,6 +47,7 @@
     function track(target, key) {
         if (!activeEffect) return target[key]
         let depsMap = bucket.get(target);
+
         if (!depsMap) {
             bucket.set(target, (depsMap = new Map()));
         }
@@ -54,6 +55,7 @@
         if (!deps) {
             depsMap.set(key, (deps = new Set()))
         }
+        console.log('deps before add',key, deps);
         deps.add(activeEffect);
         activeEffect.deps.push(deps);
         // debugger
@@ -75,6 +77,7 @@
     }
 
     function cleanup(effectFn) {
+        console.log('cleanup',effectFn.deps);
         for (let index = 0; index < effectFn.deps.length; index++) {  
             const deps = effectFn.deps[index];
             deps.delete(effectFn);

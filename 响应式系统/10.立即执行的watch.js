@@ -139,7 +139,7 @@
       const effectFn = effect(getter, {
           lazy: true,
           scheduler: ()=>{
-            if(options.flush === 'post'){
+            if(options.flush === 'post'){ // 在组件更新后执行 promise微任务
                 const p = Promise.resolve();
                 p.then(job)
             }else{

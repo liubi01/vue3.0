@@ -66,10 +66,13 @@
     // }
     // effect()
     effect(() => {
+        console.log("effect run",obj.text);
         document.body.innerText = obj.text
     });
     setTimeout(() => {
+        console.log(obj.text);
         obj.text = 'hello vue3'
+        console.log(obj.text);
         obj.text1 = 'text1'
     }, 1000)
 </script>

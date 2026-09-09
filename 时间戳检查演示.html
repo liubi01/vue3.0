@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>时间戳检查机制演示</title>
+</head>
+<body>
+    <div id="app">
+        <h3>时间戳检查机制演示</h3>
+        <p><strong>使用说明：</strong></p>
+        <ol>
+            <li>先点击"模拟响应式更新"按钮重新绑定事件</li>
+            <li>然后点击蓝色子元素区域</li>
+            <li>观察日志：父元素事件会被时间戳检查阻止执行</li>
+        </ol>
+        
+        <div id="parent" style="border: 2px solid red; padding: 20px; margin: 10px;">
+            父元素 (点击次数: <span id="parentCount">0</span>)
+            <div id="child" style="border: 2px solid blue; padding: 20px; margin: 10px;">
+                子元素 (点击次数: <span id="childCount">0</span>)
+            </div>
+        </div>
+        
+        <div style="margin: 20px;">
+            <button onclick="toggleTimestampCheck()">切换时间戳检查: <span id="checkStatus">开启</span></button>
+            <button onclick="resetCounts()">重置计数</button>
+            <button onclick="triggerRebinding()">模拟响应式更新</button>
+            <button onclick="simulateExpiredEvent()">模拟过期事件</button>
+        </div>
+        
+        <div id="log" style="border: 1px solid #ccc; padding: 10px; height: 200px; overflow-y: auto; font-family: monospace; font-size: 12px;">
+            <strong>事件日志:</strong><br>
+        </div>
+    </div>
+
+    <script>
+        let parentCount = 0;
+        let childCount = 0;
+        let timestampCheckEnabled = true;
+        
+        // 模拟 Vue 的事件绑定机制
+        function bindEventWithTimestampCheck(element, eventType, handler) {
+            const invokers = element._vei || (element._vei = {});
+            let invoker = invokers[eventType];
+            
+            if (!invoker) {
+                invoker = invokers[eventType] = (e) => {
+                    const log = document.getElementById('log');
+                    const elementName = element.id || 'unknown';
+                    
+                    // 🎯 关键理解：在真实场景中，我们需要模拟"过期事件"
+                    // 当组件更新时，旧的事件监听器可能会被触发
+                    const timestamp = e.timeStamp || Date.now();
+                    const attached = invoker.attached || 0;
+                    
+                    // 安全的时间戳显示
+                    const timeStr = !isNaN(timestamp) ? timestamp.toFixed(2) : 'N/A';
+                    const attachedStr = !isNaN(attached) ? attached.toFixed(2) : 'N/A';
+                    
+                    log.innerHTML += `${elementName} 事件触发: ${eventType}, 事件时间: ${timeStr}, 绑定时间: ${attachedStr}`;
+                    
+                    // 🎯 时间戳检查：阻止"过期"事件
+                    if (timestampCheckEnabled && timestamp < attached) {
+                        log.innerHTML += ` -> <span style="color: red;">被阻止 (过期事件: ${timeStr} < ${attachedStr})</span><br>`;
+                        return;
+                    }
+                    
+                    log.innerHTML += ` -> <span style="color: green;">正常执行</span><br>`;
+                    log.scrollTop = log.scrollHeight;
+                    
+                    // 执行实际的事件处理函数
+                    try {
+                        handler(e);
+                    } catch (error) {
+                        log.innerHTML += ` -> <span style="color: orange;">执行错误: ${error.message}</span><br>`;
+                        log.scrollTop = log.scrollHeight;
+                    }
+                };
+                
+                invoker.value = handler;
+                invoker.attached = performance.now();
+                element.addEventListener(eventType, invoker);
+                
+                const log = document.getElementById('log');
+                const elementName = element.id || 'unknown';
+                log.innerHTML += `${elementName} 绑定事件: ${eventType}, 绑定时间: ${invoker.attached.toFixed(2)}<br>`;
+                log.scrollTop = log.scrollHeight;
+            } else {
+                // 更新事件处理器（模拟响应式更新）
+                invoker.value = handler;
+                invoker.attached = performance.now(); // 更新绑定时间
+                
+                const log = document.getElementById('log');
+                const elementName = element.id || 'unknown';
+                log.innerHTML += `${elementName} 更新事件绑定: ${eventType}, 新绑定时间: ${invoker.attached.toFixed(2)}<br>`;
+                log.scrollTop = log.scrollHeight;
+            }
+        }
+        
+        // 🎯 新增：模拟过期事件的函数
+        function simulateExpiredEvent() {
+            const log = document.getElementById('log');
+            log.innerHTML += '<br><strong>模拟过期事件场景</strong><br>';
+            
+            // 1. 先绑定父元素事件
+            bindEventWithTimestampCheck(parent, 'click', parentClick);
+            
+            // 2. 延迟后创建一个"过期"事件（时间戳早于绑定时间）
+            setTimeout(() => {
+                const oldEvent = new Event('click'); //Event
+                // 🎯 关键：手动设置一个较早的时间戳
+                Object.defineProperty(oldEvent, 'timeStamp', {
+                    value: performance.now() - 1000, // 比当前时间早1秒
+                    writable: false
+                });
+                
+                log.innerHTML += '<span style="color: orange;">触发过期事件（时间戳比绑定时间早1秒）</span><br>';
+                parent.dispatchEvent(oldEvent);
+            }, 100);
+        }
+        
+        // 绑定事件
+        const parent = document.getElementById('parent');
+        const child = document.getElementById('child');
+        
+        function parentClick(e) {
+            parentCount++;
+            document.getElementById('parentCount').textContent = parentCount;
+        }
+        
+        function childClick(e) {
+            childCount++;
+            document.getElementById('childCount').textContent = childCount;
+            
+            // 不阻止事件冒泡，让父元素事件也触发
+            // e.stopPropagation();
+        }
+        
+        // 初始绑定
+        bindEventWithTimestampCheck(parent, 'click', parentClick);
+        bindEventWithTimestampCheck(child, 'click', childClick);
+        
+        function toggleTimestampCheck() {
+            timestampCheckEnabled = !timestampCheckEnabled;
+            document.getElementById('checkStatus').textContent = timestampCheckEnabled ? '开启' : '关闭';
+            
+            const log = document.getElementById('log');
+            log.innerHTML += `<br><strong>时间戳检查已${timestampCheckEnabled ? '开启' : '关闭'}</strong><br>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        function triggerRebinding() {
+            // 模拟响应式更新：重新绑定所有事件
+            const log = document.getElementById('log');
+            log.innerHTML += '<br><strong>模拟响应式更新：重新绑定所有事件</strong><br>';
+            
+            // 🎯 关键修复：先重新绑定子元素，然后延迟绑定父元素
+            // 这样父元素的绑定时间会晚于当前点击事件的时间戳
+            bindEventWithTimestampCheck(child, 'click', childClick);
+            
+            // 延迟绑定父元素，模拟异步更新
+            setTimeout(() => {
+                bindEventWithTimestampCheck(parent, 'click', parentClick);
+                log.innerHTML += '<span style="color: blue;">现在点击子元素，父元素事件应该被时间戳检查阻止</span><br>';
+                log.scrollTop = log.scrollHeight;
+            }, 100); // 延迟100ms确保时间差
+        }
+        
+        function resetCounts() {
+            parentCount = 0;
+            childCount = 0;
+            document.getElementById('parentCount').textContent = '0';
+            document.getElementById('childCount').textContent = '0';
+            
+            // 清理所有事件绑定
+            if (parent._vei) {
+                parent._vei = {};
+            }
+            if (child._vei) {
+                child._vei = {};
+            }
+            
+            const log = document.getElementById('log');
+            log.innerHTML = '<strong>事件日志:</strong><br>计数已重置，事件已清理<br>';
+            
+            // 重新绑定事件
+            bindEventWithTimestampCheck(parent, 'click', parentClick);
+            bindEventWithTimestampCheck(child, 'click', childClick);
+        }
+    </script>
+</body>
+</html>

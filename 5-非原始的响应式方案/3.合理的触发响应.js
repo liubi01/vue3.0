@@ -1,12 +1,12 @@
 /**
- * 1 当属性值修改时值相同时不需要触发副作用--在set中判断 
+ * 1 当属性值修改时值相同时不需要触发副作用--在set中判断  问题--在set中判断(oldValue === oldValue && newValue === newValue) 
  * 2.解决NAN的判断 
  * 3.原型上继承属性问题（reflect会在原型链上查找属性）会根据原型链触发两次set trigger所屏蔽parent那一次
  * 4.数组数据的操作与响应：depsmap中 key为 length或者索引值，并且这两个depsKey可能会互相影响如修改length或影响下标（key>=length）的值
  *   --修改key如果是新增的花（arr[3]=1 3大于length）那么ADD的操作会修改length
  *   --for...in中的遍历中当修改length时会改变for...in 所以要数组在for...in时track length值
  *   --for...of中遍历值，会默认读取数组的Symbol.iterator这个属性方法就会默认给他设置key的回调方法所以要过滤调（因为他为隐式调用没有必要响应浪费性能）
- *   --includes(此类查找方法): 在代理对象数组中所有的内部对象（obj）也是代理对象，如果 arr.includes(obj) 其实查找的是obj这个原始对象所以找不到（arr.include(arr[0])是可以的），所以需要从写includes目的通过get拦截它让其this指向代理对象并查找
+ *   --includes(此类查找方法): 在代理对象数组中所有的内部对象（obj）也是代理对象，如果 arr.includes(obj) 其实查找的是obj这个原始对象所以找不到（arr.include(arr[0])是可以的），所以从写includes目的通过get拦截它让其this指向代理对象并查找
  *   --push(此类隐式修改数组长度的方法=)会隐式的访问length属性和设置length属性 有可能会造成无限循环问题所有有重写添加shouldTrack判断其执行 
  * 5.代理set和map数据类型
  *    --size属性代理对象调用时需要配置他的this指向
@@ -18,6 +18,8 @@
  *    --数据污染：把响应式数据设置到原始数据上的行为称为数据污染（add、set.普通对象的写值），因为操作响应式的数据会变像让原始数据变为响应式所以需要在数据设置时候获取原始数据来设置值(rawValue)
  *    --foreach: 需要响应key和value 所以在foreach中要深度响应这两个值
  *    --迭代器：for...of中迭代器被调用所以需要track他的回调方法到ITERATE_KEY中并且需要深度响应
+ * 
+ * ***receiver 是实际调用者调用者在proxy对象上调用的get/set方法时，receiver就是proxy对象本身；但如果通过继承链调用时，receiver就是继承链上的那个对象*** child = Object.create(parent) child.foo  receiver就是child 
  */
 
 // 全局变量存储被注册的副作用函数
@@ -75,6 +77,18 @@ function shallowReadonly(data) {
     return createReactive(data, true, true);
 }
 
+/**
+ * 创建一个响应式代理对象，拦截对原始数据的各种操作
+ * @param {Object|Array|Set|Map} data - 需要代理的原始数据
+ * @param {boolean} [isShallow=false] - 是否创建浅响应式对象
+ * @param {boolean} [isReadonly=false] - 是否创建只读响应式对象
+ * @returns {Proxy} 响应式代理对象
+ * @property {Function} get - 拦截属性读取操作
+ * @property {Function} set - 拦截属性设置操作
+ * @property {Function} has - 拦截in操作符
+ * @property {Function} ownKeys - 拦截for...in循环
+ * @property {Function} deleteProperty - 拦截delete操作
+ */
 function createReactive(data, isShallow = false, isReadonly = false) {
     return new Proxy(data, {
         get(target, key, receiver) {
@@ -100,11 +114,11 @@ function createReactive(data, isShallow = false, isReadonly = false) {
                     return target[key].bind(target);
                 }
             }
-            res = Reflect.get(...arguments)
+            res = Reflect.get(...arguments)//arguments = [target, key, receiver]
             if (isShallow) {
                 return res;
             }
-            if (typeof res === 'object' && res !== null) {
+            if (typeof res === 'object' && res !== null) { // 如果res是对象就继续代理
                 return isReadonly ? readonly(res) : reactive(res);
             }
             return res

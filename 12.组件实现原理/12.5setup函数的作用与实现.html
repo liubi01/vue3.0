@@ -482,8 +482,15 @@
     let isFlushing = false;
     const p = Promise.resolve();
 
+    /**
+    * 将任务添加到队列中，并在下一个微任务周期执行队列中的所有任务
+    * @param {Function} job - 要添加到队列中的任务函数
+    * @description 使用微任务队列来批量执行任务，避免重复刷新
+    * 如果当前没有正在刷新队列，则启动一个微任务来执行队列中的所有任务
+    * 执行完成后会重置队列状态
+    */
     function queueJob(job) {
-        queue.add(job);
+    queue.add(job);
         if (!isFlushing) {
             isFlushing = true;
             P.then(() => {

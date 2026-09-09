@@ -36,7 +36,15 @@
     * 
     */
 
-   function defineAsyncComponent(loader) {
+   /**
+ * 定义一个异步组件
+ * @param {Function} loader - 加载组件的方法，返回一个Promise
+ * @returns {Object} 返回一个包装组件对象
+ * @property {string} name - 组件名称
+ * @property {Function} setup - 组件设置函数，返回渲染函数
+ * @description 该函数用于创建异步加载的组件，在组件加载完成前渲染空文本节点
+ */
+function defineAsyncComponent(loader) {
       let InnerComp = null;
       return {
          name: 'AsyncComponentWrapper',

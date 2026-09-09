@@ -16,7 +16,7 @@ const p = Promise.resolve() // 使用promise实例将任务添加到微任务队
 
 let isFlushing = false // 是否正在刷新队列
 function flushJob() {
-    if (isFlushing) return // 如果正在刷新，则什么也不做
+    if (isFlushing) return // 如果正在刷新，则什么也不做 刷新的是jobQueue
     isFlushing = true // 正在刷新
     p.then(() => { // 将副作用函数的执行放到微任务队列中
         jobQueue.forEach(effectFn => effectFn()) // 取出任务队列中的所有副作用函数执行
@@ -27,11 +27,11 @@ function flushJob() {
 
 function effect(fn, options = {}) {
     const effectFn = () => {
-        // 副作用函数执行之前，将该函数从其所在的依赖集合中删除
+        // 副作用函数执行之前，将该函数从其所在的依赖集合中删除 目的是为了实现响应式数据的动态变化
         cleanup(effectFn)
         // 当effectFn执行时，将其设置为当前激活的副作用函数
         activeEffect = effectFn
-        effectStack.push(activeEffect) // 将当前副作用函数推进栈
+        effectStack.push(activeEffect) // 将当前副作用函数推入栈中 位置是栈顶 末尾
         const res = fn() // lazy选项，getter函数，执行的结果res
         // 当前副作用函数结束后，将此函数推出栈顶，并将activeEffect指向栈顶的副作用函数
         // 这样：响应式数据就只会收集直接读取其值的副作用函数作为依赖
@@ -127,12 +127,25 @@ function reactive(obj) {
             }
             return res
         },
+        /**
+         * 拦截 in 操作符的代理方法
+         * @param {object} target - 目标对象
+         * @param {string|symbol} p - 要检查的属性名或Symbol
+         * @returns {boolean} 目标对象是否包含该属性
+         * @description 用于跟踪属性访问并返回目标对象是否包含指定属性
+         */
         has(target, p) { // 拦截 in 操作符, in操作符内部最终调用了对象的[[HasProperty]]内部方法，该内部方法可以被Proxy的has拦截函数拦截
             track(target, p)
             return Reflect.has(target, p)
         },
+
+        /**
+         * 拦截对象的 ownKeys 操作，用于跟踪 for...in 循环的依赖收集
+         * @param {Object} target - 被代理的目标对象
+         * @returns {Array} 目标对象自身的所有属性键组成的数组
+         */
         ownKeys(target) { // 拦截 for in 循环，只有target参数
-            track(target, ITERATE_KEY)
+            track(target, ITERATE_KEY) //
             return Reflect.ownKeys(target)
         },
         deleteProperty(target, p) { // 拦截delete操作, delete操作也会影响for in 循环，所以传递DELETE参数到trigger函数
@@ -145,17 +158,17 @@ function reactive(obj) {
         }
     })
 }
-
+// 对基础数据类型要双绑
 function ref(val) {
     const wrapper = {
         value: val
     }
-    Object.defineProperty(wrapper, '__v_isRef', {
+    Object.defineProperty(wrapper, '__v_isRef', { // 这是设置在
         value: true,
     });
     return reactive(wrapper)
 }
-
+// 代理对象添加一个key，并要双绑
 function toRef(obj, key) {
     const wrapper = {
         get value() {
@@ -170,7 +183,7 @@ function toRef(obj, key) {
     });
     return reactive(wrapper)
 }
-
+// 对整个对象做双绑
 function toRefs(obj) {
     const ret = [];
     for (const key in obj) {
@@ -179,8 +192,20 @@ function toRefs(obj) {
     return ret;
 }
 
+/**
+ * 创建一个代理对象，自动解包目标对象中的 ref 值 使用场景为
+ * @param {Object} target - 包含 ref 值的原始对象
+ * @returns {Proxy} 代理对象，访问其属性时会自动解包 ref 值
+ */
 function proxyRefs(target) {
     return new Proxy(target, {
+        /**
+         * 获取目标对象的属性值，如果是 ref 对象则返回其 .value 值
+         * @param {object} target - 目标对象
+         * @param {string|symbol} key - 要获取的属性键
+         * @param {object} receiver - 接收器对象（可选）
+         * @returns {*} 属性值，如果是 ref 则返回其 .value 值
+         */
         get(target, key, receiver) {
             const value = Reflect.get(target, key, receiver);
             return value.__v_isRef ? value.value : value;

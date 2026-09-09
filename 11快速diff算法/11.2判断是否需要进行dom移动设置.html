@@ -177,6 +177,7 @@
             let newVNode = newChildren[j];
             console.log(j);
             // 更新前置元素
+            // 从前往后比对
             while (oldVNode.key === newVNode.key) {
                 patch(oldVNode, newVNode, container);
                 j++;
@@ -188,6 +189,7 @@
             let newEnd = newChildren.length - 1;
             oldVNode = oldChildren[oldEnd];
             newVNode = newChildren[newEnd];
+            // 从后往前比对
             while (oldVNode && newVNode && (oldVNode.key === newVNode.key)) {
                 patch(oldVNode, newVNode, container);
                 oldEnd--;

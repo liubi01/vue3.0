@@ -62,6 +62,17 @@
         } = options;
 
         // 新旧节点的更新或者挂载
+        /**
+         * 虚拟DOM节点打补丁函数
+         * @param {VNode} n1 - 旧虚拟节点，如果为null表示首次挂载
+         * @param {VNode} n2 - 新虚拟节点
+         * @param {HTMLElement} container - 容器元素
+         * @description
+         * 1. 处理不同类型节点的卸载和挂载
+         * 2. 支持普通元素、文本节点、Fragment片段和组件
+         * 3. 根据节点类型调用对应的处理函数
+         * 4. 对于相同类型的节点执行更新操作
+         */
         function patch(n1, n2, container) {
             if (n1 && n1.type !== n2.type) { // type 不同卸载n1
                 unmount(n1);
@@ -232,35 +243,48 @@
         setText(el, text) {
             el.nodeValue = text;
         },
+        /**
+         * 更新元素的属性或事件处理函数
+         * @param {HTMLElement} el - 需要更新的DOM元素
+         * @param {string} key - 属性名或事件名(以'on'开头)
+         * @param {*} preValue - 之前的属性值或事件处理函数
+         * @param {*} nextValue - 新的属性值或事件处理函数
+         * @description 
+         * - 处理事件时使用性能优化方案，避免频繁添加/移除事件监听器
+         * - 处理class属性时直接设置className
+         * - 处理普通属性时根据shouldSetAsProps判断是否直接设置DOM属性
+         * - 其他情况使用setAttribute设置属性
+         */
         patchProps(el, key, preValue, nextValue) {
             if (/^on/.test(key)) {
-                // 更具属性名称获取对应事件名称
+                // 根据属性名称获取对应事件名称
                 const name = key.slice(2).toLowerCase();
                 // preValue && el.removeEventListener(name, preValue);
                 // el.addEventListener(name, nextValue)
                 // 性能更佳的卸载事件的方式
-                const invokers = el._vei || (el._vei = {})
-                let invoker = invokers[key]
-                if (nextValue) {
+                const invokers = el._vei || (el._vei = {}) //这是用来存储事件的容器
+                let invoker = invokers[key] //
+                if (nextValue) { // 添加或者更新事件
                     if (!invoker) {
                         // 将事件缓存到el._vei[key]中
-                        // vue event invoker 
+                        // vue event invoker  这个
                         invoker = el._vei[key] = (e) => {
-                            if (e.timeStamp < invoker.attached) return; // timeStamp 事件触发事件 < chrome49 时间不高精
-                            if (Array.isArray(invoker.value)) {
-                                invoker.value.forEach(fn => fn(e))
+                            if (e.timeStamp < invoker.attached)
+                                return; // 事件触发时间小于事件绑定时间 说明是旧事件 直接返回 避免执行新事件 timeStamp是一个浮点数，表示事件触发时距浏览器启动所经过的毫秒数 说明事件还没有被绑定
+                            if (Array.isArray(invoker.value)) { //怎么会是一个数组
+                                invoker.value.forEach(fn => fn(e)) //
                             } else {
-                                invoker.value(e)
+                                invoker.value(e) // 直接执行事件函数
                             }
                         }
-                        invoker.value = nextValue;
-                        invoker.attached = performance.now();
+                        invoker.value = nextValue; // 保存事件函数
+                        invoker.attached = performance.now(); // 记录事件挂载时间 用于事件卸载时判断是否过期
                         console.log(el, invoker.attached);
-                        el.addEventListener(name, invoker);
+                        el.addEventListener(name, invoker); // invorker数据格式为 function(e){...}
                     } else {
-                        invoker.value = nextValue; // 可以避免更新事件时 多一次卸载removeEventListener事件执行 从而提升性能
+                        invoker.value = nextValue; //
                     }
-                } else if (invoker) {
+                } else if (invoker) { // 卸载事件
                     el.removeEventListener(name, invoker);
                 }
             } else if (key === 'class') {

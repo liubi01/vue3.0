@@ -18,7 +18,7 @@
     function effect(fn) {
         const effectFn = () => {
             console.log('effectFn');
-            cleanup(effectFn);
+            // cleanup(effectFn);
             activeEffect = effectFn;
             fn();
         }
@@ -98,6 +98,7 @@
         })
         tmp1 = obj.foo
     })
+    
     setTimeout(() => {
         console.log("改变foo的值");
         obj.foo = 'hello vue3'  //

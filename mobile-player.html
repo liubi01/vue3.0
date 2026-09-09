@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>手机音乐播放器</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            font-family: Arial, sans-serif;
+            background-color: #f5f5f5;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        .player {
+            width: 90%;
+            max-width: 400px;
+            background-color: white;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+            padding: 20px;
+            text-align: center;
+        }
+        .cover {
+            width: 200px;
+            height: 200px;
+            border-radius: 50%;
+            margin: 0 auto 20px;
+            background-color: #ddd;
+            overflow: hidden;
+        }
+        .cover img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .song-info {
+            margin-bottom: 20px;
+        }
+        .song-info h2 {
+            margin: 0;
+            font-size: 1.5em;
+        }
+        .song-info p {
+            margin: 5px 0 0;
+            color: #666;
+        }
+        .controls {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .controls button {
+            background: none;
+            border: none;
+            font-size: 2em;
+            margin: 0 15px;
+            cursor: pointer;
+        }
+        .progress-container {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .progress {
+            width: 100%;
+            height: 5px;
+            background-color: #ddd;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress-bar {
+            height: 100%;
+            background-color: #4CAF50;
+            width: 0%;
+        }
+        .volume {
+            width: 100%;
+            margin-bottom: 20px;
+        }
+        .volume input {
+            width: 100%;
+        }
+        .danmu {
+            width: 100%;
+            height: 100px;
+            border: 1px solid #ddd;
+            margin-bottom: 20px;
+            overflow: hidden;
+            position: relative;
+        }
+        .danmu-item {
+            position: absolute;
+            white-space: nowrap;
+            font-size: 14px;
+            color: #333;
+        }
+        .comments {
+            width: 100%;
+            max-height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            padding: 10px;
+            margin-bottom: 20px;
+        }
+        .comment-input {
+            width: 100%;
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .comment-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .comment-input button {
+            margin-left: 10px;
+            padding: 8px 15px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <div class="player">
+        <div class="danmu" id="danmu"></div>
+        <div class="cover">
+            <img src="https://via.placeholder.com/200" alt="专辑封面">
+        </div>
+        <div class="song-info">
+            <h2>歌曲标题</h2>
+            <p>歌手名称</p>
+        </div>
+        <div class="progress-container">
+            <div class="progress">
+                <div class="progress-bar"></div>
+            </div>
+        </div>
+        <div class="controls">
+            <button id="prev">⏮</button>
+            <button id="play">⏵</button>
+            <button id="next">⏭</button>
+        </div>
+        <div class="volume">
+            <input type="range" id="volume" min="0" max="1" step="0.1" value="0.7">
+        </div>
+        <div class="comments" id="comments">
+            <div class="comment">用户1: 这首歌太好听了！</div>
+            <div class="comment">用户2: 经典老歌！</div>
+        </div>
+        <div class="comment-input">
+            <input type="text" id="comment-input" placeholder="输入评论...">
+            <button id="comment-submit">发送</button>
+        </div>
+    </div>
+
+    <script>
+        const playButton = document.getElementById('play');
+        const progressBar = document.querySelector('.progress-bar');
+        const volumeControl = document.getElementById('volume');
+        const danmuContainer = document.getElementById('danmu');
+        const commentInput = document.getElementById('comment-input');
+        const commentSubmit = document.getElementById('comment-submit');
+        const commentsContainer = document.getElementById('comments');
+        
+        let isPlaying = false;
+        let audio = new Audio('https://example.com/sample.mp3'); // 替换为实际音频URL
+        
+        // 播放/暂停功能
+        playButton.addEventListener('click', () => {
+            if (isPlaying) {
+                audio.pause();
+                playButton.textContent = '⏵';
+            } else {
+                audio.play();
+                playButton.textContent = '⏸';
+            }
+            isPlaying = !isPlaying;
+        });
+        
+        // 进度条更新
+        audio.addEventListener('timeupdate', () => {
+            const progress = (audio.currentTime / audio.duration) * 100;
+            progressBar.style.width = `${progress}%`;
+        });
+        
+        // 音量控制
+        volumeControl.addEventListener('input', () => {
+            audio.volume = volumeControl.value;
+        });
+        
+        // 弹幕功能
+        function showDanmu(text) {
+            const danmuItem = document.createElement('div');
+            danmuItem.className = 'danmu-item';
+            danmuItem.textContent = text;
+            danmuContainer.appendChild(danmuItem);
+            
+            const startX = danmuContainer.offsetWidth;
+            const endX = -danmuItem.offsetWidth;
+            const duration = Math.random() * 5000 + 3000; // 随机持续时间
+            
+            let startTime = null;
+            function animate(timestamp) {
+                if (!startTime) startTime = timestamp;
+                const progress = timestamp - startTime;
+                const percentage = progress / duration;
+                const currentX = startX - (startX - endX) * percentage;
+                danmuItem.style.transform = `translateX(${currentX}px)`;
+                
+                if (percentage < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    danmuContainer.removeChild(danmuItem);
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+        
+        // 模拟弹幕
+        setInterval(() => {
+            const messages = ['好听！', '666', '再来一首！', '经典！'];
+            const randomMsg = messages[Math.floor(Math.random() * messages.length)];
+            showDanmu(randomMsg);
+        }, 2000);
+        
+        // 评论功能
+        commentSubmit.addEventListener('click', () => {
+            const commentText = commentInput.value.trim();
+            if (commentText) {
+                const commentElement = document.createElement('div');
+                commentElement.className = 'comment';
+                commentElement.textContent = `用户: ${commentText}`;
+                commentsContainer.appendChild(commentElement);
+                commentInput.value = '';
+                commentsContainer.scrollTop = commentsContainer.scrollHeight;
+            }
+        });
+    </script>
+</body>
+</html>
